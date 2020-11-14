@@ -1,0 +1,409 @@
+#include"Chromosome.h"
+#define CHROMOSOME_NUM 100			//객체 수
+#define BOUNDARY_POINT 70			//유전시킬 객체의 문턱등수
+#define HIGH_POINT 10				//몇등 까지 옮길것인지
+#define CROSSOVER_NUM 70			//교차로 만들어지는 객체 개수
+#define MUTATE_NUM 20				//변이로 만들어지는 객체 개수
+#define GENETIC_NUM 15				//세대 개수
+#define RING_NUM 4					//고리의 개수
+
+//랜덤 선택
+int rand_choice(int x) {
+	random_device rd;
+	mt19937 gen(rd());
+	uniform_int_distribution<int> ran(0, x);
+	return ran(gen);
+}
+
+//선택 연산
+Chromosome choice(Chromosome chr[], const int& boundary, const int& num) {
+	int r;
+	while (true) {
+		r = rand_choice(num-1);
+		if (chr[r].get_count() <= boundary)
+			return chr[r];
+	}
+}
+
+//교차 연산
+Chromosome cross(const Chromosome& x, const Chromosome& y) {
+	vector<vector<int>> way_x = x.get_way();
+	vector<vector<int>> way_y = y.get_way();
+	vector<vector<int>> way;
+	Chromosome xy;
+	int r = rand_choice(x.get_count()/2);
+	vector<vector<vector<int>>> state_x = x.get_state();
+	vector<vector<vector<int>>> state_y = y.get_state();
+	vector<vector<vector<int>>> state;
+	int k;
+	int count = 0;
+	int y_cnt = y.get_count();
+	for (k = y_cnt - 1; k > (y_cnt / 2); k--) {
+
+		if (state_y[k] == state_x[r]) {
+			for (int i = 0; i < r; i++) {
+				way.push_back(way_x[i]);
+				state.push_back(state_x[i]);
+				count++;
+			}
+			for (int j = k; j < y_cnt; j++) {
+				way.push_back(way_y[j]);
+				state.push_back(state_y[j]);
+				count++;
+			}
+			break;
+		}
+	}
+	xy.heritage(state, way, count);
+	return xy;
+	//cout << xy.get_count() << endl;
+}
+
+//방법을 보여주는 함수
+void show_way(const vector<vector<int>>& way) {
+	for (int i = 0; i < way.size(); i++) {
+		cout << " ( ";
+		for (int j = 0; j < way[i].size(); j++)
+			cout << way[i][j];
+		cout << " ) ";
+	}
+	cout << endl;
+}
+
+//상태를 보여주는 함수
+void show_state(const vector<vector<vector<int>>>& state) {
+	for (int i = 0; i < state.size(); i++) {
+		cout << i + 1 << " 번째 상태 : ";
+		for (int j = 0; j < state[i].size(); j++) {
+			cout << " ( ";
+			for (int k = 0; k < state[i][j].size(); k++)
+				cout << state[i][j][k];
+			cout << " ) ";
+		}
+		cout << endl;
+	}
+}
+
+//알고리즘
+int algorithm(vector<vector<int>> peg,vector<vector<int>>& best_way) {
+	int disk_num = RING_NUM;
+	int min;
+
+	Chromosome(*gen)[CHROMOSOME_NUM] = new Chromosome[GENETIC_NUM][CHROMOSOME_NUM];		//유전으로 만들어지는 객체
+	int rank[CHROMOSOME_NUM];					//객체의 등수
+	Chromosome* parente = new Chromosome[2];
+
+	for (int i = 0; i < CHROMOSOME_NUM; i++) {
+		gen[0][i].set_disk(disk_num);
+		gen[0][i].set_peg(peg);
+		gen[0][i].run();
+
+		cout << gen[0][i].get_count() << endl;
+
+	}
+	//최소값
+	min = gen[0][0].get_count();
+
+	//유전
+	int n=0;
+	Chromosome xy;
+	for (int k = 0; k < GENETIC_NUM; k++) {
+		n = 0;
+
+		//출력
+		cout << endl << k + 1 << " generation" << endl;
+		for (int i = 0; i < CHROMOSOME_NUM; i++) {
+			cout << gen[k][i].get_count() << " ";
+			//최소값
+			if (min > gen[k][i].get_count()) {
+				min = gen[k][i].get_count();
+				best_way = gen[k][i].get_way();
+			}
+
+			rank[i] = gen[k][i].get_count();
+		}
+		sort(rank, rank + CHROMOSOME_NUM);
+		int high_point = rank[HIGH_POINT];					//상위 high_point까지 그대로 옮기겠다.
+
+		//수렴
+		if (rank[0] == rank[10]) {
+			cout << endl<<"옮길 수 : " << min << endl;
+			delete[] gen;
+			return min;
+		}
+		//끝
+		if (k == GENETIC_NUM - 1) {
+
+			delete[] gen;
+			return min;
+		}
+		int boundary = rank[BOUNDARY_POINT];
+		cout << endl << "최솟값 : " << min << endl;
+		cout << "경계 점 : " << boundary << endl;
+
+		//상위 HIGH_POINT 만큼 그대로
+		for (int i = 0; i < CHROMOSOME_NUM; i++) {
+			if (gen[k][i].get_count() <= high_point) {
+				gen[k + 1][n++] = gen[k][i];
+			}
+			if (n == HIGH_POINT)
+				break;
+		}
+
+		//교차
+		for (int i = 0; i < CROSSOVER_NUM; i++) {
+			for (int j = 0; j < 2; j++) {
+				if (k == 0)
+					parente[j] = choice(gen[0], boundary, CHROMOSOME_NUM);		//초기 100개를 기준으로
+				else
+					parente[j] = choice(gen[k], boundary, CHROMOSOME_NUM);		//자손 70개를 기준으로
+				
+			}
+			xy = cross(parente[0], parente[1]);
+			if (xy.get_count() != 0) {
+				gen[k + 1][n++] = xy;
+				if (n == CROSSOVER_NUM + HIGH_POINT)
+					break;
+			}
+			else
+				i--;
+		}
+
+		//변이
+		//for (int i = 0; i < MUTATE_NUM; i++) {
+		//	Chromosome xy_mutate = choice(gen[k], boundary, CHROMOSOME_NUM);
+		//	//int r = rand_choice(pow(2,RING_NUM)-1);
+		//	//int r = (rand() % xy_mutate.get_count()) / 2 + 2;
+		//	xy_mutate.mutate(pow(2, RING_NUM) - 1);		// 오류
+		//	gen[k + 1][n++] = xy_mutate;
+		//	if (n == MUTATE_NUM + CROSSOVER_NUM + HIGH_POINT)
+		//		break;
+		//}
+
+		//추가
+		for (int i = 0; i < MUTATE_NUM; i++) {
+			gen[k+1][n].set_disk(disk_num);
+			gen[k+1][n].set_peg(peg);
+			gen[k+1][n].run();
+			n++;
+		}
+	}
+}
+
+//고리 찾아주는 함수
+void detect()
+{
+	char cnt[30];
+	int level = 0;
+	int count = 0;
+	namedWindow("img_color");
+
+
+	vector< vector<int> > peg = vector< vector<int> >(3);
+	vector<vector<int>> best_way;
+
+	int bar[3] = { 117,323,536 };	//bar의 x 좌표
+	int rings = 0;					//검출된 고리 개수
+
+	////HSV
+	//int hue = 6;
+	//int s_min = 70;
+	//int s_max = 255;
+	//int v_min = 70;
+	//int v_max = 255;
+
+	////고리 색 지정
+	//int pink = 159;
+	//int green = 58;
+	//int yel_green = 38;
+	//int blue = 104;
+
+	//HSV
+	int hue = 6;
+	int s_min = 70;
+	int s_max = 255;
+	int v_min = 70;
+	int v_max = 255;
+
+	//고리 색 지정
+	int pink = 161;
+	int green = 60;
+	int yel_green = 39;
+	int blue = 110;
+
+	//bar 오차
+	int bar_range = 10;
+
+	Mat img_color;
+
+	Vec3b lower_blue, upper_blue, lower_pink, upper_pink, lower_green, upper_green, lower_yel_green, upper_yel_green, lower_red1, upper_red1, lower_red2, upper_red2 ;
+
+	Mat img_hsv;
+
+	VideoCapture cap(0);
+
+	cap.set(CAP_PROP_SATURATION, 180);
+	cap.set(CAP_PROP_EXPOSURE, -6);
+
+	if (!cap.isOpened()) {
+		cout << "카메라를 열 수 없습니다." << endl;
+		exit;
+	}
+	int flag = 0;
+	while (1)
+	{
+		rings = 0;
+		for (int j = 0; j < 3; j++)
+			peg[j].clear();
+		cap.read(img_color);
+		cvtColor(img_color, img_hsv, COLOR_BGR2HSV);
+
+		lower_pink = Vec3b(pink - hue, s_min, v_min);
+		upper_pink = Vec3b(pink + hue, s_max, v_max);
+		lower_green = Vec3b(green - hue, s_min, v_min);
+		upper_green = Vec3b(green + hue, s_max, v_max);
+		lower_yel_green = Vec3b(yel_green - hue, s_min, v_min);
+		upper_yel_green = Vec3b(yel_green + hue, s_max, v_max);
+		lower_blue = Vec3b(blue - hue, s_min, v_min);
+		upper_blue = Vec3b(blue + hue, s_max, v_max);
+		lower_red1 = Vec3b(0, s_min, v_min);
+		upper_red1 = Vec3b(hue, s_max, v_max);
+		lower_red2 = Vec3b(180 - hue, s_min, v_min);
+		upper_red2 = Vec3b(180, s_max, v_max);
+		Mat img_mask[5], img_red[2];
+
+		inRange(img_hsv, lower_red1, upper_red1, img_red[0]);
+		inRange(img_hsv, lower_red2, upper_red2, img_red[1]);
+		img_mask[0] = img_red[0] | img_red[1];
+
+		inRange(img_hsv, lower_blue, upper_blue, img_mask[1]);
+		inRange(img_hsv, lower_pink, upper_pink, img_mask[2]);
+		inRange(img_hsv, lower_green, upper_green, img_mask[3]);
+		inRange(img_hsv, lower_yel_green, upper_yel_green, img_mask[4]);
+
+		int morph_size = 2;
+		Mat element = getStructuringElement(MORPH_RECT, Size(2 * morph_size + 1, 2 * morph_size + 1),
+			Point(morph_size, morph_size));
+
+
+		Mat img_labels, stats, centroids;
+		int centerX, centerY;
+		for (int i = 0; i < RING_NUM; i++) {
+			morphologyEx(img_mask[i], img_mask[i], MORPH_OPEN, element); // 노이즈 제거 
+			morphologyEx(img_mask[i], img_mask[i], MORPH_CLOSE, element); // 검은색 구멍 부분 매움
+
+			int numOfLabels = connectedComponentsWithStats(img_mask[i], img_labels, stats, centroids, 8, CV_32S);
+			for (int j = 1; j < numOfLabels; j++) {
+				int area = stats.at<int>(j, CC_STAT_AREA);
+				int left = stats.at<int>(j, CC_STAT_LEFT);
+				int top = stats.at<int>(j, CC_STAT_TOP);
+				int width = stats.at<int>(j, CC_STAT_WIDTH);
+				int height = stats.at<int>(j, CC_STAT_HEIGHT);
+
+				centerX = left + width / 2;
+				centerY = top + height / 2;
+
+				if (area > 1000) {
+					circle(img_color, Point(centerX, centerY), 5, Scalar(255, 0, 0), 1);
+					rectangle(img_color, Point(left, top), Point(left + width, top + height), Scalar(0, 0, 255), 1);
+					for (int k = 0; k < 3; ++k)
+						if (centerX > bar[k] - bar_range && centerX < bar[k] + bar_range) {
+							peg[k].push_back(i + 1);
+							rings++;
+						}
+
+				}
+			}
+		}
+		if (rings == RING_NUM && flag == 0) {
+			for (int i = 0; i < peg.size(); i++) {
+				cout << i + 1 << "(";
+				for (int j = 0; j < peg[i].size(); j++) {
+					cout << peg[i][j] << " ";
+				}
+				cout << ")";
+				cout << endl;
+			}
+			++flag;
+			count = algorithm(peg, best_way);
+			cout << "succes" << endl;
+			show_way(best_way);
+		}
+		//imshow("img_mask", img_mask[4]);
+		
+		//UI
+		if (flag == 1) {
+			Point rook_points[3];			
+			Scalar color;
+			const Point* ppt = { rook_points };
+
+			int npt[] = { 3 };
+
+			sprintf_s(cnt, "count : %d", level + 1);
+			putText(img_color, cnt, Point(20, 20), FONT_HERSHEY_PLAIN, 2.0, Scalar(75, 137, 220), 2);
+			if (best_way[level][1] == 0) {
+				rectangle(img_color, Point(110, 60), Point(130, 180), Scalar(255, 0, 0), -1, 1, 0);
+				putText(img_color, "In", Point(70, 100), FONT_HERSHEY_PLAIN, 2.0, Scalar(255, 0, 0), 2);
+				rook_points[0] = Point(120, 190); rook_points[1] = Point(100, 170);	rook_points[2] = Point(140, 170);
+
+				fillPoly(img_color, &ppt, npt, 1, Scalar(255, 0, 0), 8);
+			}
+			else if (best_way[level][1] == 1) {  
+				rectangle(img_color, Point(315, 60), Point(335, 180), Scalar(255, 0, 0), -1, 1, 0);
+				putText(img_color, "In", Point(270, 100), FONT_HERSHEY_PLAIN, 2.0, Scalar(255, 0, 0), 2);
+				rook_points[0] = Point(325, 190); rook_points[1] = Point(305, 170);	rook_points[2] = Point(345, 170);
+
+				fillPoly(img_color, &ppt, npt, 1, Scalar(255, 0, 0), 8);
+			}
+			else if (best_way[level][1] == 2) {
+				rectangle(img_color, Point(520, 60), Point(540, 180), Scalar(255, 0, 0), -1, 1, 0);
+				putText(img_color, "In", Point(470, 100), FONT_HERSHEY_PLAIN, 2.0, Scalar(255, 0, 0), 2);
+				rook_points[0] = Point(530, 190); rook_points[1] = Point(510, 170);	rook_points[2] = Point(550, 170);
+
+				fillPoly(img_color, &ppt, npt, 1, Scalar(255, 0, 0), 8);
+			}
+			if (best_way[level][0] == 0) {
+				rectangle(img_color, Point(110, 60), Point(130, 180), Scalar(0, 0, 255), -1, 1, 0);
+				putText(img_color, "Out", Point(50, 100), FONT_HERSHEY_PLAIN, 2.0, Scalar(0, 0, 255), 2);
+				rook_points[0] = Point(120, 50); rook_points[1] = Point(100, 70);	rook_points[2] = Point(140, 70);
+
+				fillPoly(img_color, &ppt, npt, 1, Scalar(0,0, 255), 8);
+			}
+			else if (best_way[level][0] == 1) {
+				rectangle(img_color, Point(315, 60), Point(335, 180), Scalar(0, 0, 255), -1, 1, 0);
+				putText(img_color, "Out", Point(250, 100), FONT_HERSHEY_PLAIN, 2.0, Scalar(0, 0, 255), 2);
+				rook_points[0] = Point(325, 50); rook_points[1] = Point(305, 70);	rook_points[2] = Point(345, 70);
+
+				fillPoly(img_color, &ppt, npt, 1, Scalar(0, 0, 255), 8);
+			}
+			else if (best_way[level][0] == 2) {
+				rectangle(img_color, Point(520, 60), Point(540, 180), Scalar(0, 0, 255), -1, 1, 0);
+				putText(img_color, "Out", Point(450, 100), FONT_HERSHEY_PLAIN, 2.0, Scalar(0, 0, 255), 2);
+				rook_points[0] = Point(530, 50); rook_points[1] = Point(510, 70);	rook_points[2] = Point(550, 70);
+
+				fillPoly(img_color, &ppt, npt, 1, Scalar(0, 0, 255), 8);
+			}
+
+
+		}
+		imshow("img_color", img_color);
+		//키보드 이펙트
+		int key = waitKeyEx(10);
+		if (key == 2490368) // up
+			++level;
+
+		if (key == 2621440)	//down
+			--level;
+		
+		if (key == 114) {	//r
+			flag = 0;
+			level = 0;
+			count = 0;
+		}
+	}
+}
+
+
+int main() {
+	detect();
+}
