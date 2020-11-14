@@ -204,20 +204,7 @@ void detect()
 
 	int bar[3] = { 117,323,536 };	//bar의 x 좌표
 	int rings = 0;					//검출된 고리 개수
-
-	////HSV
-	//int hue = 6;
-	//int s_min = 70;
-	//int s_max = 255;
-	//int v_min = 70;
-	//int v_max = 255;
-
-	////고리 색 지정
-	//int pink = 159;
-	//int green = 58;
-	//int yel_green = 38;
-	//int blue = 104;
-
+	
 	//HSV
 	int hue = 6;
 	int s_min = 70;
